@@ -1,0 +1,65 @@
+#include <iostream>
+#include <string>
+#include <vector>
+
+#include "TFile.h"
+#include "TTree.h"
+#include "TBranch.h"
+
+void processFile(const std::string &inputFile, const std::string &outputFile) {
+    // 打开原始ROOT文件
+    TFile *inputRoot = TFile::Open(inputFile.c_str(), "READ");
+    if (inputRoot == nullptr || inputRoot->IsZombie()) {
+        std::cerr << "Error opening file: " << inputFile << std::endl;
+        return; // 出错则退出函数
+    }
+    
+    TTree *inputTree;
+    inputRoot->GetObject("tree", inputTree); // 使用实际的树名称
+
+    if (inputTree == nullptr) {
+        std::cerr << "Error: Tree not found in " << inputFile << std::endl;
+        inputRoot->Close();
+        return; // 没有找到树则退出函数
+    }
+
+    // 准备读取 jet_pt 分支
+    float jet_pt;
+    TBranch *br = inputTree->GetBranch("jet_pt");
+    br->SetAddress(&jet_pt);
+
+    // 创建新的ROOT文件和树
+    TFile *outputRoot = new TFile(outputFile.c_str(), "RECREATE");
+    TTree *outputTree = new TTree("tree", "Tree with vector"); // 指定输出的树名称
+    std::vector<float> jet_pt_vec;
+    outputTree->Branch("jet_pt", &jet_pt_vec);
+
+    // 转换数据
+    Long64_t nEntries = inputTree->GetEntries();
+    for (Long64_t i = 0; i < nEntries; ++i) {
+        inputTree->GetEntry(i);
+        jet_pt_vec.clear();
+        jet_pt_vec.push_back(jet_pt); // 将值添加到vector中
+        outputTree->Fill();
+    }
+
+    // 保存到新的ROOT文件
+    outputRoot->Write();
+    outputRoot->Close();
+    inputRoot->Close();
+}
+
+int main(int argc, char** argv) {
+    if (argc < 3) {
+        std::cerr << "Usage: " << argv[0] << " <input ROOT file> <output ROOT file>" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    std::string inputFile = argv[1];
+    std::string outputFile = argv[2];
+    processFile(inputFile, outputFile);
+
+    return EXIT_SUCCESS;
+}
+
+
